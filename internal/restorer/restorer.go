@@ -22,17 +22,19 @@ type Restorer struct {
 
 	Error        func(location string, err error) error
 	SelectFilter func(item string, dstpath string, node *restic.Node) (selectedForRestore bool, childMayBeSelected bool)
+	verbosity uint
 }
 
 var restorerAbortOnAllErrors = func(location string, err error) error { return err }
 
 // NewRestorer creates a restorer preloaded with the content from the snapshot id.
-func NewRestorer(ctx context.Context, repo restic.Repository, sn *restic.Snapshot, sparse bool) *Restorer {
+func NewRestorer(ctx context.Context, repo restic.Repository, sn *restic.Snapshot, sparse bool, verbosity uint) *Restorer {
 	r := &Restorer{
 		repo:         repo,
 		sparse:       sparse,
 		Error:        restorerAbortOnAllErrors,
 		SelectFilter: func(string, string, *restic.Node) (bool, bool) { return true, true },
+		verbosity:    verbosity,
 		sn:           sn,
 	}
 
@@ -215,7 +217,7 @@ func (res *Restorer) RestoreTo(ctx context.Context, dst string) error {
 	}
 
 	idx := NewHardlinkIndex()
-	filerestorer := newFileRestorer(dst, res.repo.Backend().Load, res.repo.Key(), res.repo.Index().Lookup, res.repo.Connections(), res.sparse)
+	filerestorer := newFileRestorer(dst, res.repo.Backend().Load, res.repo.Key(), res.repo.Index().Lookup, res.repo.Connections(), res.sparse, res.verbosity)
 	filerestorer.Error = res.Error
 
 	debug.Log("first pass for %q", dst)

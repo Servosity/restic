@@ -141,7 +141,7 @@ func runRestore(ctx context.Context, opts RestoreOptions, gopts GlobalOptions, a
 		return err
 	}
 
-	res := restorer.NewRestorer(ctx, repo, sn, opts.Sparse)
+	res := restorer.NewRestorer(ctx, repo, sn, opts.Sparse, gopts.verbosity)
 
 	totalErrors := 0
 	res.Error = func(location string, err error) error {

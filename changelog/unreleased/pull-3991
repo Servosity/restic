@@ -1,0 +1,7 @@
+Enhancement: Adds progress details while restoring
+
+The command restic restore now shows a progress report while it's restoring files.
+
+Example: [0:42]  23 / 3456 Files,  12.98 MiB / 23.54 GiB,  5.76 %   
+
+https://github.com/restic/restic/pull/3991
