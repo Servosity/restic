@@ -2,6 +2,7 @@ package progressprinter
 
 import (
 	"bytes"
+	"os"
 	"testing"
 	"time"
 )
@@ -69,7 +70,7 @@ func TestCalculatePercent(test *testing.T) {
 }
 
 func TestNew(t *testing.T) {
-	printer := New()
+	printer := New(os.Stdout)
 
 	actualFilesTotal := printer.filesTotal
 	actualAllBytesTotal := printer.allBytesTotal
@@ -87,7 +88,7 @@ func TestNew(t *testing.T) {
 func TestAddFile(t *testing.T) {
 	expectedFilesTotal := int64(1)
 	expectedAllBytesTotal := int64(100)
-	printer := New()
+	printer := New(os.Stdout)
 
 	printer.AddFile(expectedAllBytesTotal)
 
@@ -107,7 +108,7 @@ func TestAddFile(t *testing.T) {
 func TestFirstProgressOnAFile(t *testing.T) {
 	expectedBytesWritten := int64(5)
 	expectedBytesTotal := int64(17)
-	printer := New()
+	printer := New(os.Stdout)
 	printer.AddFile(100)
 
 	printer.LogProgress("test", expectedBytesWritten, expectedBytesTotal)
@@ -133,7 +134,7 @@ func TestSubsequentProgressOnAFile(t *testing.T) {
 	secondBytesWritten := int64(10)
 	expectedBytesWritten := firstBytesWritten + secondBytesWritten
 	expectedAllBytesWritten := bytesWrittenOnOtherFile + firstBytesWritten + secondBytesWritten
-	printer := New()
+	printer := New(os.Stdout)
 	printer.AddFile(100)
 	printer.AddFile(50)
 	printer.allBytesWritten = bytesWrittenOnOtherFile
@@ -153,7 +154,7 @@ func TestSubsequentProgressOnAFile(t *testing.T) {
 
 func TestLastProgressOnAFile(t *testing.T) {
 	fileSize := int64(100)
-	printer := New()
+	printer := New(os.Stdout)
 	printer.AddFile(fileSize)
 	printer.LogProgress("test", int64(30), fileSize)
 	printer.LogProgress("test", int64(35), fileSize)
@@ -176,7 +177,7 @@ func TestLastProgressOnAFile(t *testing.T) {
 
 func TestLastProgressOnLastFile(t *testing.T) {
 	fileSize := int64(100)
-	printer := New()
+	printer := New(os.Stdout)
 	printer.AddFile(fileSize)
 	printer.AddFile(50)
 	printer.LogProgress("test1", int64(50), int64(50))
@@ -197,14 +198,13 @@ func TestLastProgressOnLastFile(t *testing.T) {
 }
 
 func TestPrintingWithSpecificValues(t *testing.T) {
-	printer := New()
+	var writer bytes.Buffer
+	printer := New(&writer)
 	printer.filesTotal = 10
 	printer.filesFinished = 6
 	printer.allBytesTotal = 1024
 	printer.allBytesWritten = 512
 	expectedPrint := "[0:01]  6 / 10 Files,  512 B / 1.00 KiB,  50.00 %   \r"
-	var writer bytes.Buffer
-	progresswriter = &writer
 	time.Sleep(time.Second)
 
 	print(printer)
@@ -227,12 +227,12 @@ func TestPrintingForThe4CasesOfProgress(t *testing.T) {
 		"[0:00]  2 / 2 Files,  100 B / 100 B,  100.00 %   \r",
 	}
 	actualValues := [4]string{}
-	printer := New()
+	printer := New(os.Stdout)
 	printer.AddFile(90)
 	printer.AddFile(10)
 
 	for i := 0; i < len(expectedValues); i++ {
-		progresswriter = &writers[i]
+		printer.progresswriter = &writers[i]
 		printer.LogProgress(names[i], dones[i], froms[i])
 		actualValues[i] = writers[i].String()
 	}
@@ -247,10 +247,9 @@ func TestPrintingForThe4CasesOfProgress(t *testing.T) {
 }
 
 func TestPrintSummaryOnSuccess(t *testing.T) {
-	var writer bytes.Buffer
-	progresswriter = &writer
 	expectedPrint := "  \rSummary: Restored 2 Files (100 B) in 0:01\n"
-	printer := New()
+	var writer bytes.Buffer
+	printer := New(&writer)
 	printer.AddFile(50)
 	printer.AddFile(50)
 	printer.filesFinished = 2
@@ -266,10 +265,9 @@ func TestPrintSummaryOnSuccess(t *testing.T) {
 }
 
 func TestPrintSummaryOnErrors(t *testing.T) {
-	var writer bytes.Buffer
-	progresswriter = &writer
 	expectedPrint := "Summary: Restored 1 / 2 Files (70 B / 100 B) in 0:01\n"
-	printer := New()
+	var writer bytes.Buffer
+	printer := New(&writer)
 	printer.AddFile(50)
 	printer.AddFile(50)
 	printer.filesFinished = 1

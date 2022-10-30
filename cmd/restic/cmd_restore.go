@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"os"
 	"strings"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/restic/restic/internal/filter"
 	"github.com/restic/restic/internal/restic"
 	"github.com/restic/restic/internal/restorer"
+	"github.com/restic/restic/internal/ui/restore/progressprinter"
 
 	"github.com/spf13/cobra"
 )
@@ -141,7 +143,11 @@ func runRestore(ctx context.Context, opts RestoreOptions, gopts GlobalOptions, a
 		return err
 	}
 
-	res := restorer.NewRestorer(ctx, repo, sn, opts.Sparse, gopts.verbosity)
+	var progressPrinter *progressprinter.RestoreProgressPrinter = nil
+	if gopts.verbosity >= 1 {
+		progressPrinter = progressprinter.New(os.Stdout)
+	}
+	res := restorer.NewRestorer(ctx, repo, sn, opts.Sparse, progressPrinter)
 
 	totalErrors := 0
 	res.Error = func(location string, err error) error {

@@ -55,7 +55,6 @@ type fileRestorer struct {
 	filesWriter     *filesWriter
 	zeroChunk       restic.ID
 	sparse          bool
-	progress        bool
 	progressPrinter *progressprinter.RestoreProgressPrinter
 
 	dst   string
@@ -69,7 +68,7 @@ func newFileRestorer(dst string,
 	idx func(restic.BlobHandle) []restic.PackedBlob,
 	connections uint,
 	sparse bool,
-	verbosity uint) *fileRestorer {
+	progressPrinter *progressprinter.RestoreProgressPrinter) *fileRestorer {
 
 	// as packs are streamed the concurrency is limited by IO
 	workerCount := int(connections)
@@ -81,8 +80,7 @@ func newFileRestorer(dst string,
 		filesWriter:     newFilesWriter(workerCount),
 		zeroChunk:       repository.ZeroChunk(),
 		sparse:          sparse,
-		progress:        verbosity >= 1,
-		progressPrinter: progressprinter.New(),
+		progressPrinter: progressPrinter,
 		workerCount:     workerCount,
 		dst:             dst,
 		Error:           restorerAbortOnAllErrors,
@@ -91,7 +89,7 @@ func newFileRestorer(dst string,
 
 func (r *fileRestorer) addFile(location string, content restic.IDs, size int64) {
 	r.files = append(r.files, &fileInfo{location: location, blobs: content, size: size})
-	if r.progress {
+	if r.progressPrinter != nil {
 		r.progressPrinter.AddFile(size)
 	}
 }
@@ -194,7 +192,9 @@ func (r *fileRestorer) restoreFiles(ctx context.Context) error {
 			}
 		}
 		close(downloadCh)
-		r.progressPrinter.PrintSummary()
+		if r.progressPrinter != nil {
+			r.progressPrinter.PrintSummary()
+		}
 		return nil
 	})
 
@@ -279,7 +279,7 @@ func (r *fileRestorer) downloadPack(ctx context.Context, pack *packInfo) error {
 						createSize = file.size
 					}
 					writeErr := r.filesWriter.writeToFile(r.targetPath(file.location), blobData, offset, createSize, file.sparse)
-					if r.progress {
+					if r.progressPrinter != nil {
 						bytesWrittenPortion := int64(len(blobData))
 						r.progressPrinter.LogProgress(file.location, bytesWrittenPortion, file.size)
 					}

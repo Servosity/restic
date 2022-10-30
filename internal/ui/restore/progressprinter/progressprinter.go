@@ -3,13 +3,10 @@ package progressprinter
 import (
 	"fmt"
 	"io"
-	"os"
 	"strings"
 	"sync"
 	"time"
 )
-
-var progresswriter io.Writer = os.Stdout
 
 type progressInfoEntry struct {
 	name         string
@@ -19,6 +16,7 @@ type progressInfoEntry struct {
 
 type RestoreProgressPrinter struct {
 	sync.Mutex
+	progresswriter  io.Writer
 	progressInfoMap map[string]progressInfoEntry
 	filesFinished   int64
 	filesTotal      int64
@@ -69,12 +67,13 @@ func print(p *RestoreProgressPrinter) {
 	allPercent := calculatePercent(p.allBytesWritten, p.allBytesTotal)
 	text := fmt.Sprintf("[%s]  %d / %d Files,  %s / %s,  %.2f %%   \r",
 		timeLeft, p.filesFinished, p.filesTotal, formattedAllBytesWritten, formattedAllBytesTotal, allPercent)
-	fmt.Fprint(progresswriter, text)
+	fmt.Fprint(p.progresswriter, text)
 	p.lastPrinted = text
 }
 
-func New() *RestoreProgressPrinter {
+func New(progresswriter io.Writer) *RestoreProgressPrinter {
 	return &RestoreProgressPrinter{
+		progresswriter:  progresswriter,
 		progressInfoMap: make(map[string]progressInfoEntry),
 		started:         time.Now(),
 	}
@@ -113,11 +112,11 @@ func (p *RestoreProgressPrinter) PrintSummary() {
 	formattedAllBytesTotal := formatBytesInBestUnit(p.allBytesTotal)
 	if p.filesFinished == p.filesTotal && p.allBytesWritten == p.allBytesTotal {
 		lineRemovalSpaces := strings.Repeat(" ", len(p.lastPrinted))
-		fmt.Fprintf(progresswriter, "%s\rSummary: Restored %d Files (%s) in %s\n",
+		fmt.Fprintf(p.progresswriter, "%s\rSummary: Restored %d Files (%s) in %s\n",
 			lineRemovalSpaces, p.filesTotal, formattedAllBytesTotal, timeLeft)
 	} else {
 		formattedAllBytesWritten := formatBytesInBestUnit(p.allBytesWritten)
-		fmt.Fprintf(progresswriter, "Summary: Restored %d / %d Files (%s / %s) in %s\n",
+		fmt.Fprintf(p.progresswriter, "Summary: Restored %d / %d Files (%s / %s) in %s\n",
 			p.filesFinished, p.filesTotal, formattedAllBytesWritten, formattedAllBytesTotal, timeLeft)
 	}
 }
