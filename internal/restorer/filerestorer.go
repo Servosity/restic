@@ -12,7 +12,7 @@ import (
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/repository"
 	"github.com/restic/restic/internal/restic"
-	"github.com/restic/restic/internal/restorer/progressprinter"
+	"github.com/restic/restic/internal/ui/restore/progressprinter"
 )
 
 // TODO if a blob is corrupt, there may be good blob copies in other packs
