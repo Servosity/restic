@@ -95,9 +95,6 @@ func newFileRestorer(dst string,
 
 func (r *fileRestorer) addFile(location string, content restic.IDs, size int64) {
 	r.files = append(r.files, &fileInfo{location: location, blobs: content, size: size})
-	if r.printProgress {
-		r.progressFormatter.AddFile(size)
-	}
 }
 
 func (r *fileRestorer) targetPath(location string) string {

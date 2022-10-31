@@ -23,6 +23,7 @@ type Restorer struct {
 	sparse            bool
 	progressFormatter *progressformatter.RestoreProgressFormatter
 	terminal          *termstatus.Terminal
+	printProgress     bool
 
 	Error        func(location string, err error) error
 	SelectFilter func(item string, dstpath string, node *restic.Node) (selectedForRestore bool, childMayBeSelected bool)
@@ -40,6 +41,7 @@ func NewRestorer(ctx context.Context, repo restic.Repository, sn *restic.Snapsho
 		SelectFilter:      func(string, string, *restic.Node) (bool, bool) { return true, true },
 		progressFormatter: progressFormatter,
 		terminal:          terminal,
+		printProgress:     progressFormatter != nil && terminal != nil,
 		sn:                sn,
 	}
 
@@ -193,6 +195,12 @@ func (res *Restorer) restoreHardlinkAt(node *restic.Node, target, path, location
 	if err != nil {
 		return errors.WithStack(err)
 	}
+
+	if res.printProgress {
+		text := res.progressFormatter.FormatProgress(location, 0, 0)
+		res.terminal.SetStatus([]string{text, ""})
+	}
+
 	// TODO investigate if hardlinks have separate metadata on any supported system
 	return res.restoreNodeMetadataTo(node, path, location)
 }
@@ -205,6 +213,11 @@ func (res *Restorer) restoreEmptyFileAt(node *restic.Node, target, location stri
 	err = wr.Close()
 	if err != nil {
 		return err
+	}
+
+	if res.printProgress {
+		text := res.progressFormatter.FormatProgress(location, 0, 0)
+		res.terminal.SetStatus([]string{text, ""})
 	}
 
 	return res.restoreNodeMetadataTo(node, target, location)
@@ -250,6 +263,10 @@ func (res *Restorer) RestoreTo(ctx context.Context, dst string) error {
 
 			if node.Type != "file" {
 				return nil
+			}
+
+			if res.printProgress {
+				res.progressFormatter.AddFile(int64(node.Size))
 			}
 
 			if node.Size == 0 {
