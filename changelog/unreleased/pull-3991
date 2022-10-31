@@ -4,4 +4,8 @@ The command restic restore now shows a progress report while it's restoring file
 
 Example: [0:42]  23 / 3456 Files,  12.98 MiB / 23.54 GiB,  5.76 %   
 
+Fixes issue: https://github.com/restic/restic/issues/3627
+
+Mentioned in Forum Thread https://forum.restic.net/t/progress-bar-for-restore/5210
+
 https://github.com/restic/restic/pull/3991
