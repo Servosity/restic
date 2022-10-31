@@ -283,7 +283,7 @@ func (r *fileRestorer) downloadPack(ctx context.Context, pack *packInfo) error {
 					if r.printProgress {
 						bytesWrittenPortion := int64(len(blobData))
 						progress := r.progressFormatter.FormatProgress(file.location, bytesWrittenPortion, file.size)
-						r.terminal.SetStatus([]string{progress, ""})
+						r.terminal.SetStatus([]string{progress})
 					}
 
 					return writeErr

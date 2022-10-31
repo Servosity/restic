@@ -197,8 +197,8 @@ func (res *Restorer) restoreHardlinkAt(node *restic.Node, target, path, location
 	}
 
 	if res.printProgress {
-		text := res.progressFormatter.FormatProgress(location, 0, 0)
-		res.terminal.SetStatus([]string{text, ""})
+		progress := res.progressFormatter.FormatProgress(location, 0, 0)
+		res.terminal.SetStatus([]string{progress})
 	}
 
 	// TODO investigate if hardlinks have separate metadata on any supported system
@@ -216,8 +216,8 @@ func (res *Restorer) restoreEmptyFileAt(node *restic.Node, target, location stri
 	}
 
 	if res.printProgress {
-		text := res.progressFormatter.FormatProgress(location, 0, 0)
-		res.terminal.SetStatus([]string{text, ""})
+		progress := res.progressFormatter.FormatProgress(location, 0, 0)
+		res.terminal.SetStatus([]string{progress})
 	}
 
 	return res.restoreNodeMetadataTo(node, target, location)
