@@ -48,14 +48,14 @@ func TestFormatLeftTime(test *testing.T) {
 	}
 }
 
-func TestCalculatePercent(test *testing.T) {
-	expectedValues := []float64{42.230000000000004, 1.1, 0.12, 0.0, 0.0, 100.0}
+func TestFormatPercent(test *testing.T) {
+	expectedValues := []string{"42.23 %", "1.10 %", "0.12 %", "0.00 %", "0.00 %", "100.00 %"}
 	dones := []int64{4_223, 11, 12, 0, 123, 42}
 	froms := []int64{10_000, 1_000, 10_000, 10, 0, 42}
-	actualValues := [6]float64{}
+	actualValues := [6]string{}
 
 	for i := 0; i < len(expectedValues); i++ {
-		actualValues[i] = calculatePercent(dones[i], froms[i])
+		actualValues[i] = formatPercent(dones[i], froms[i])
 	}
 
 	for i := 0; i < len(expectedValues); i++ {
