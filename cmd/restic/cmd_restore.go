@@ -35,8 +35,12 @@ Exit status is 0 if the command was successful, and non-zero if there was any er
 `,
 	DisableAutoGenTag: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		progressFormatter := progressformatter.NewFormatter()
-		term := termstatus.New(globalOptions.stdout, globalOptions.stderr, globalOptions.Quiet)
+		var progressFormatter *progressformatter.RestoreProgressFormatter
+		var term *termstatus.Terminal
+		if !globalOptions.Quiet {
+			progressFormatter = progressformatter.NewFormatter()
+			term = termstatus.New(globalOptions.stdout, globalOptions.stderr, globalOptions.Quiet)
+		}
 
 		ctx := cmd.Context()
 		var wg sync.WaitGroup
@@ -47,14 +51,18 @@ Exit status is 0 if the command was successful, and non-zero if there was any er
 			wg.Wait()
 
 			// print summary
-			//term.Print(progressFormatter.FormatSummary())
-			fmt.Fprintln(globalOptions.stdout, progressFormatter.FormatSummary())
+			if !globalOptions.Quiet {
+				fmt.Fprintln(globalOptions.stdout, progressFormatter.FormatSummary())
+			}
 		}()
 
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			term.Run(cancelCtx)
+
+			if term != nil {
+				term.Run(cancelCtx)
+			}
 		}()
 
 		return runRestore(ctx, restoreOptions, globalOptions, progressFormatter, term, args)

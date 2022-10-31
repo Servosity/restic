@@ -58,6 +58,7 @@ type fileRestorer struct {
 	sparse            bool
 	progressFormatter *progressformatter.RestoreProgressFormatter
 	terminal          *termstatus.Terminal
+	printProgress     bool
 
 	dst   string
 	files []*fileInfo
@@ -85,6 +86,7 @@ func newFileRestorer(dst string,
 		sparse:            sparse,
 		progressFormatter: progressFormatter,
 		terminal:          terminal,
+		printProgress:     progressFormatter != nil && terminal != nil,
 		workerCount:       workerCount,
 		dst:               dst,
 		Error:             restorerAbortOnAllErrors,
@@ -93,7 +95,9 @@ func newFileRestorer(dst string,
 
 func (r *fileRestorer) addFile(location string, content restic.IDs, size int64) {
 	r.files = append(r.files, &fileInfo{location: location, blobs: content, size: size})
-	r.progressFormatter.AddFile(size)
+	if r.printProgress {
+		r.progressFormatter.AddFile(size)
+	}
 }
 
 func (r *fileRestorer) targetPath(location string) string {
@@ -279,9 +283,12 @@ func (r *fileRestorer) downloadPack(ctx context.Context, pack *packInfo) error {
 					}
 					writeErr := r.filesWriter.writeToFile(r.targetPath(file.location), blobData, offset, createSize, file.sparse)
 
-					bytesWrittenPortion := int64(len(blobData))
-					progress := r.progressFormatter.FormatProgress(file.location, bytesWrittenPortion, file.size)
-					r.terminal.SetStatus([]string{progress, ""})
+					if r.printProgress {
+						bytesWrittenPortion := int64(len(blobData))
+						progress := r.progressFormatter.FormatProgress(file.location, bytesWrittenPortion, file.size)
+						r.terminal.SetStatus([]string{progress, ""})
+					}
+
 					return writeErr
 				}
 				err := sanitizeError(file, writeToFile())
