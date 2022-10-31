@@ -12,7 +12,8 @@ import (
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/repository"
 	"github.com/restic/restic/internal/restic"
-	"github.com/restic/restic/internal/ui/restore/progressprinter"
+	"github.com/restic/restic/internal/ui/restore/progressformatter"
+	"github.com/restic/restic/internal/ui/termstatus"
 )
 
 // TODO if a blob is corrupt, there may be good blob copies in other packs
@@ -51,11 +52,12 @@ type fileRestorer struct {
 	idx        func(restic.BlobHandle) []restic.PackedBlob
 	packLoader repository.BackendLoadFn
 
-	workerCount     int
-	filesWriter     *filesWriter
-	zeroChunk       restic.ID
-	sparse          bool
-	progressPrinter *progressprinter.RestoreProgressPrinter
+	workerCount       int
+	filesWriter       *filesWriter
+	zeroChunk         restic.ID
+	sparse            bool
+	progressFormatter *progressformatter.RestoreProgressFormatter
+	terminal          *termstatus.Terminal
 
 	dst   string
 	files []*fileInfo
@@ -68,30 +70,30 @@ func newFileRestorer(dst string,
 	idx func(restic.BlobHandle) []restic.PackedBlob,
 	connections uint,
 	sparse bool,
-	progressPrinter *progressprinter.RestoreProgressPrinter) *fileRestorer {
+	progressFormatter *progressformatter.RestoreProgressFormatter,
+	terminal *termstatus.Terminal) *fileRestorer {
 
 	// as packs are streamed the concurrency is limited by IO
 	workerCount := int(connections)
 
 	return &fileRestorer{
-		key:             key,
-		idx:             idx,
-		packLoader:      packLoader,
-		filesWriter:     newFilesWriter(workerCount),
-		zeroChunk:       repository.ZeroChunk(),
-		sparse:          sparse,
-		progressPrinter: progressPrinter,
-		workerCount:     workerCount,
-		dst:             dst,
-		Error:           restorerAbortOnAllErrors,
+		key:               key,
+		idx:               idx,
+		packLoader:        packLoader,
+		filesWriter:       newFilesWriter(workerCount),
+		zeroChunk:         repository.ZeroChunk(),
+		sparse:            sparse,
+		progressFormatter: progressFormatter,
+		terminal:          terminal,
+		workerCount:       workerCount,
+		dst:               dst,
+		Error:             restorerAbortOnAllErrors,
 	}
 }
 
 func (r *fileRestorer) addFile(location string, content restic.IDs, size int64) {
 	r.files = append(r.files, &fileInfo{location: location, blobs: content, size: size})
-	if r.progressPrinter != nil {
-		r.progressPrinter.AddFile(size)
-	}
+	r.progressFormatter.AddFile(size)
 }
 
 func (r *fileRestorer) targetPath(location string) string {
@@ -192,9 +194,6 @@ func (r *fileRestorer) restoreFiles(ctx context.Context) error {
 			}
 		}
 		close(downloadCh)
-		if r.progressPrinter != nil {
-			r.progressPrinter.PrintSummary()
-		}
 		return nil
 	})
 
@@ -279,10 +278,10 @@ func (r *fileRestorer) downloadPack(ctx context.Context, pack *packInfo) error {
 						createSize = file.size
 					}
 					writeErr := r.filesWriter.writeToFile(r.targetPath(file.location), blobData, offset, createSize, file.sparse)
-					if r.progressPrinter != nil {
-						bytesWrittenPortion := int64(len(blobData))
-						r.progressPrinter.LogProgress(file.location, bytesWrittenPortion, file.size)
-					}
+
+					bytesWrittenPortion := int64(len(blobData))
+					progress := r.progressFormatter.FormatProgress(file.location, bytesWrittenPortion, file.size)
+					r.terminal.SetStatus([]string{progress, ""})
 					return writeErr
 				}
 				err := sanitizeError(file, writeToFile())

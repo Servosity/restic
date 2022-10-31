@@ -1,9 +1,7 @@
-package progressprinter
+package progressformatter
 
 import (
 	"fmt"
-	"io"
-	"strings"
 	"sync"
 	"time"
 )
@@ -14,15 +12,13 @@ type progressInfoEntry struct {
 	bytesTotal   int64
 }
 
-type RestoreProgressPrinter struct {
+type RestoreProgressFormatter struct {
 	sync.Mutex
-	progresswriter  io.Writer
 	progressInfoMap map[string]progressInfoEntry
 	filesFinished   int64
 	filesTotal      int64
 	allBytesWritten int64
 	allBytesTotal   int64
-	lastPrinted     string
 	started         time.Time
 }
 
@@ -60,33 +56,30 @@ func calculatePercent(done, from int64) float64 {
 	return float64(100) / float64(from) * float64(done)
 }
 
-func print(p *RestoreProgressPrinter) {
+func format(p *RestoreProgressFormatter) string {
 	timeLeft := formatLeftTime(int64(time.Since(p.started)))
 	formattedAllBytesWritten := formatBytesInBestUnit(p.allBytesWritten)
 	formattedAllBytesTotal := formatBytesInBestUnit(p.allBytesTotal)
 	allPercent := calculatePercent(p.allBytesWritten, p.allBytesTotal)
-	text := fmt.Sprintf("[%s]  %d / %d Files,  %s / %s,  %.2f %%   \r",
+	return fmt.Sprintf("  [%s]  %d / %d Files,  %s / %s,  %.2f %%  ",
 		timeLeft, p.filesFinished, p.filesTotal, formattedAllBytesWritten, formattedAllBytesTotal, allPercent)
-	fmt.Fprint(p.progresswriter, text)
-	p.lastPrinted = text
 }
 
-func New(progresswriter io.Writer) *RestoreProgressPrinter {
-	return &RestoreProgressPrinter{
-		progresswriter:  progresswriter,
+func NewFormatter() *RestoreProgressFormatter {
+	return &RestoreProgressFormatter{
 		progressInfoMap: make(map[string]progressInfoEntry),
 		started:         time.Now(),
 	}
 }
 
-func (p *RestoreProgressPrinter) AddFile(size int64) {
+func (p *RestoreProgressFormatter) AddFile(size int64) {
 	p.Lock()
 	defer p.Unlock()
 	p.filesTotal++
 	p.allBytesTotal += size
 }
 
-func (p *RestoreProgressPrinter) LogProgress(name string, bytesWrittenPortion int64, bytesTotal int64) {
+func (p *RestoreProgressFormatter) FormatProgress(name string, bytesWrittenPortion int64, bytesTotal int64) string {
 	p.Lock()
 	defer p.Unlock()
 	entry, exists := p.progressInfoMap[name]
@@ -101,22 +94,19 @@ func (p *RestoreProgressPrinter) LogProgress(name string, bytesWrittenPortion in
 		delete(p.progressInfoMap, name)
 		p.filesFinished++
 	}
-	print(p)
+	return format(p)
 }
 
-func (p *RestoreProgressPrinter) PrintSummary() {
-	time.Sleep(time.Second)
+func (p *RestoreProgressFormatter) FormatSummary() string {
 	p.Lock()
 	defer p.Unlock()
 	timeLeft := formatLeftTime(int64(time.Since(p.started)))
 	formattedAllBytesTotal := formatBytesInBestUnit(p.allBytesTotal)
 	if p.filesFinished == p.filesTotal && p.allBytesWritten == p.allBytesTotal {
-		lineRemovalSpaces := strings.Repeat(" ", len(p.lastPrinted))
-		fmt.Fprintf(p.progresswriter, "%s\rSummary: Restored %d Files (%s) in %s\n",
-			lineRemovalSpaces, p.filesTotal, formattedAllBytesTotal, timeLeft)
+		return fmt.Sprintf("Summary: Restored %d Files (%s) in %s", p.filesTotal, formattedAllBytesTotal, timeLeft)
 	} else {
 		formattedAllBytesWritten := formatBytesInBestUnit(p.allBytesWritten)
-		fmt.Fprintf(p.progresswriter, "Summary: Restored %d / %d Files (%s / %s) in %s\n",
+		return fmt.Sprintf("Summary: Restored %d / %d Files (%s / %s) in %s",
 			p.filesFinished, p.filesTotal, formattedAllBytesWritten, formattedAllBytesTotal, timeLeft)
 	}
 }
