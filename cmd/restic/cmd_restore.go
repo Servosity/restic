@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -12,7 +11,8 @@ import (
 	"github.com/restic/restic/internal/filter"
 	"github.com/restic/restic/internal/restic"
 	"github.com/restic/restic/internal/restorer"
-	"github.com/restic/restic/internal/ui/restore/progressformatter"
+	"github.com/restic/restic/internal/ui"
+	restoreui "github.com/restic/restic/internal/ui/restore"
 	"github.com/restic/restic/internal/ui/termstatus"
 
 	"github.com/spf13/cobra"
@@ -35,13 +35,6 @@ Exit status is 0 if the command was successful, and non-zero if there was any er
 `,
 	DisableAutoGenTag: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var progressFormatter *progressformatter.RestoreProgressFormatter
-		var term *termstatus.Terminal
-		if !globalOptions.Quiet {
-			progressFormatter = progressformatter.NewFormatter()
-			term = termstatus.New(globalOptions.stdout, globalOptions.stderr, globalOptions.Quiet)
-		}
-
 		ctx := cmd.Context()
 		var wg sync.WaitGroup
 		cancelCtx, cancel := context.WithCancel(ctx)
@@ -49,23 +42,24 @@ Exit status is 0 if the command was successful, and non-zero if there was any er
 			// shutdown termstatus
 			cancel()
 			wg.Wait()
-
-			// print summary
-			if !globalOptions.Quiet {
-				fmt.Fprintln(globalOptions.stdout, progressFormatter.FormatSummary())
-			}
 		}()
 
+		term := termstatus.New(globalOptions.stdout, globalOptions.stderr, globalOptions.Quiet)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-
-			if term != nil {
-				term.Run(cancelCtx)
-			}
+			term.Run(cancelCtx)
 		}()
 
-		return runRestore(ctx, restoreOptions, globalOptions, progressFormatter, term, args)
+		// allow usage of warnf / verbosef
+		prevStdout, prevStderr := globalOptions.stdout, globalOptions.stderr
+		defer func() {
+			globalOptions.stdout, globalOptions.stderr = prevStdout, prevStderr
+		}()
+		stdioWrapper := ui.NewStdioWrapper(term)
+		globalOptions.stdout, globalOptions.stderr = stdioWrapper.Stdout(), stdioWrapper.Stderr()
+
+		return runRestore(ctx, restoreOptions, globalOptions, term, args)
 	},
 }
 
@@ -99,7 +93,8 @@ func init() {
 }
 
 func runRestore(ctx context.Context, opts RestoreOptions, gopts GlobalOptions,
-	progressFormatter *progressformatter.RestoreProgressFormatter, term *termstatus.Terminal, args []string) error {
+	term *termstatus.Terminal, args []string) error {
+
 	hasExcludes := len(opts.Exclude) > 0 || len(opts.InsensitiveExclude) > 0
 	hasIncludes := len(opts.Include) > 0 || len(opts.InsensitiveInclude) > 0
 
@@ -168,7 +163,7 @@ func runRestore(ctx context.Context, opts RestoreOptions, gopts GlobalOptions,
 
 	sn, err := restic.FindFilteredSnapshot(ctx, repo.Backend(), repo, opts.Hosts, opts.Tags, opts.Paths, nil, snapshotIDString)
 	if err != nil {
-		Exitf(1, "failed to find snapshot: %v", err)
+		return errors.Fatalf("failed to find snapshot: %v", err)
 	}
 
 	err = repo.LoadIndex(ctx)
@@ -176,7 +171,12 @@ func runRestore(ctx context.Context, opts RestoreOptions, gopts GlobalOptions,
 		return err
 	}
 
-	res := restorer.NewRestorer(ctx, repo, sn, opts.Sparse, progressFormatter, term)
+	var progress *restoreui.Progress
+	if !globalOptions.Quiet && !globalOptions.JSON {
+		progress = restoreui.NewProgress(restoreui.NewProgressPrinter(term))
+	}
+
+	res := restorer.NewRestorer(ctx, repo, sn, opts.Sparse, progress)
 
 	totalErrors := 0
 	res.Error = func(location string, err error) error {
@@ -238,6 +238,10 @@ func runRestore(ctx context.Context, opts RestoreOptions, gopts GlobalOptions,
 	err = res.RestoreTo(ctx, opts.Target)
 	if err != nil {
 		return err
+	}
+
+	if progress != nil {
+		progress.Finish()
 	}
 
 	if totalErrors > 0 {

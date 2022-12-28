@@ -10,20 +10,18 @@ import (
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/fs"
 	"github.com/restic/restic/internal/restic"
-	"github.com/restic/restic/internal/ui/restore/progressformatter"
-	"github.com/restic/restic/internal/ui/termstatus"
+	restoreui "github.com/restic/restic/internal/ui/restore"
 
 	"golang.org/x/sync/errgroup"
 )
 
 // Restorer is used to restore a snapshot to a directory.
 type Restorer struct {
-	repo              restic.Repository
-	sn                *restic.Snapshot
-	sparse            bool
-	progressFormatter *progressformatter.RestoreProgressFormatter
-	terminal          *termstatus.Terminal
-	printProgress     bool
+	repo   restic.Repository
+	sn     *restic.Snapshot
+	sparse bool
+
+	progress *restoreui.Progress
 
 	Error        func(location string, err error) error
 	SelectFilter func(item string, dstpath string, node *restic.Node) (selectedForRestore bool, childMayBeSelected bool)
@@ -33,16 +31,14 @@ var restorerAbortOnAllErrors = func(location string, err error) error { return e
 
 // NewRestorer creates a restorer preloaded with the content from the snapshot id.
 func NewRestorer(ctx context.Context, repo restic.Repository, sn *restic.Snapshot, sparse bool,
-	progressFormatter *progressformatter.RestoreProgressFormatter, terminal *termstatus.Terminal) *Restorer {
+	progress *restoreui.Progress) *Restorer {
 	r := &Restorer{
-		repo:              repo,
-		sparse:            sparse,
-		Error:             restorerAbortOnAllErrors,
-		SelectFilter:      func(string, string, *restic.Node) (bool, bool) { return true, true },
-		progressFormatter: progressFormatter,
-		terminal:          terminal,
-		printProgress:     progressFormatter != nil && terminal != nil,
-		sn:                sn,
+		repo:         repo,
+		sparse:       sparse,
+		Error:        restorerAbortOnAllErrors,
+		SelectFilter: func(string, string, *restic.Node) (bool, bool) { return true, true },
+		progress:     progress,
+		sn:           sn,
 	}
 
 	return r
@@ -196,9 +192,8 @@ func (res *Restorer) restoreHardlinkAt(node *restic.Node, target, path, location
 		return errors.WithStack(err)
 	}
 
-	if res.printProgress {
-		progress := res.progressFormatter.FormatProgress(location, 0, 0)
-		res.terminal.SetStatus([]string{progress})
+	if res.progress != nil {
+		res.progress.AddProgress(location, 0, 0)
 	}
 
 	// TODO investigate if hardlinks have separate metadata on any supported system
@@ -215,9 +210,8 @@ func (res *Restorer) restoreEmptyFileAt(node *restic.Node, target, location stri
 		return err
 	}
 
-	if res.printProgress {
-		progress := res.progressFormatter.FormatProgress(location, 0, 0)
-		res.terminal.SetStatus([]string{progress})
+	if res.progress != nil {
+		res.progress.AddProgress(location, 0, 0)
 	}
 
 	return res.restoreNodeMetadataTo(node, target, location)
@@ -235,10 +229,8 @@ func (res *Restorer) RestoreTo(ctx context.Context, dst string) error {
 	}
 
 	idx := NewHardlinkIndex()
-
 	filerestorer := newFileRestorer(dst, res.repo.Backend().Load, res.repo.Key(), res.repo.Index().Lookup,
-		res.repo.Connections(), res.sparse, res.progressFormatter, res.terminal)
-
+		res.repo.Connections(), res.sparse, res.progress)
 	filerestorer.Error = res.Error
 
 	debug.Log("first pass for %q", dst)
@@ -265,8 +257,8 @@ func (res *Restorer) RestoreTo(ctx context.Context, dst string) error {
 				return nil
 			}
 
-			if res.printProgress {
-				res.progressFormatter.AddFile(int64(node.Size))
+			if res.progress != nil {
+				res.progress.AddFile(node.Size)
 			}
 
 			if node.Size == 0 {
