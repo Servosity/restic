@@ -214,7 +214,7 @@ func (l *Lock) Unlock() error {
 	return l.repo.Backend().Remove(context.TODO(), Handle{Type: LockFile, Name: l.lockID.String()})
 }
 
-var StaleLockTimeout = 30 * time.Minute
+var StaleLockTimeout = 120 * time.Minute
 
 // Stale returns true if the lock is stale. A lock is stale if the timestamp is
 // older than 30 minutes or if it was created on the current machine and the
