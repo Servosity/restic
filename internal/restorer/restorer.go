@@ -65,14 +65,14 @@ func (res *Restorer) traverseTree(ctx context.Context, target, location string, 
 		// ensure that the node name does not contain anything that refers to a
 		// top-level directory.
 		nodeName := filepath.Base(filepath.Join(string(filepath.Separator), node.Name))
-		if nodeName != node.Name {
-			debug.Log("node %q has invalid name %q", node.Name, nodeName)
-			err := res.Error(location, errors.Errorf("invalid child node name %s", node.Name))
-			if err != nil {
-				return hasRestored, err
-			}
-			continue
-		}
+		// if nodeName != node.Name {
+		// 	debug.Log("node %q has invalid name %q", node.Name, nodeName)
+		// 	err := res.Error(location, errors.Errorf("invalid child node name %s", node.Name))
+		// 	if err != nil {
+		// 		return hasRestored, err
+		// 	}
+		// 	continue
+		// }
 
 		nodeTarget := filepath.Join(target, nodeName)
 		nodeLocation := filepath.Join(location, nodeName)
