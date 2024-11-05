@@ -175,16 +175,16 @@ func (res *Restorer) traverseTreeInner(ctx context.Context, target, location str
 		// ensure that the node name does not contain anything that refers to a
 		// top-level directory.
 		nodeName := filepath.Base(filepath.Join(string(filepath.Separator), node.Name))
-		if nodeName != node.Name {
-			debug.Log("node %q has invalid name %q", node.Name, nodeName)
-			err := res.sanitizeError(location, errors.Errorf("invalid child node name %s", node.Name))
-			if err != nil {
-				return nil, hasRestored, err
-			}
-			// force disable deletion to prevent unexpected behavior
-			res.opts.Delete = false
-			continue
-		}
+		// if nodeName != node.Name {
+		// 	debug.Log("node %q has invalid name %q", node.Name, nodeName)
+		// 	err := res.sanitizeError(location, errors.Errorf("invalid child node name %s", node.Name))
+		// 	if err != nil {
+		// 		return nil, hasRestored, err
+		// 	}
+		// 	// force disable deletion to prevent unexpected behavior
+		// 	res.opts.Delete = false
+		// 	continue
+		// }
 
 		nodeTarget := filepath.Join(target, nodeName)
 		nodeLocation := filepath.Join(location, nodeName)
