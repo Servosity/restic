@@ -87,6 +87,9 @@ func getSecurityDescriptor(filePath string) (securityDescriptor *[]byte, err err
 // If there are no admin permissions/required privileges, only the DACL from the SD can be set and
 // owner and group will be set based on the current user.
 func setSecurityDescriptor(filePath string, securityDescriptor *[]byte) error {
+	// Always use lower non-admin privileges.
+	lowerPrivileges.Store(true)
+
 	onceRestore.Do(enableRestorePrivilege)
 	// Set the security descriptor on the file
 	sd, err := securityDescriptorBytesToStruct(*securityDescriptor)
