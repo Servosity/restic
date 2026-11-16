@@ -124,7 +124,11 @@ func OpenHandleForEA(nodeType, path string, writeAccess bool) (handle windows.Ha
 	switch nodeType {
 	case "file":
 		utf16Path := windows.StringToUTF16Ptr(path)
-		handle, err = windows.CreateFile(utf16Path, uint32(fileAccess), 0, nil, windows.OPEN_EXISTING, windows.FILE_ATTRIBUTE_NORMAL, 0)
+		// FILE_FLAG_BACKUP_SEMANTICS lets the backup/restore privilege apply, as it
+		// does for directories and for reading the file's content. Without it a
+		// file whose ACL gives the running account no access fails here with
+		// "Access is denied" even though the rest of the file is backed up.
+		handle, err = windows.CreateFile(utf16Path, uint32(fileAccess), 0, nil, windows.OPEN_EXISTING, windows.FILE_ATTRIBUTE_NORMAL|windows.FILE_FLAG_BACKUP_SEMANTICS, 0)
 	case "dir":
 		utf16Path := windows.StringToUTF16Ptr(path)
 		handle, err = windows.CreateFile(utf16Path, uint32(fileAccess), 0, nil, windows.OPEN_EXISTING, windows.FILE_ATTRIBUTE_NORMAL|windows.FILE_FLAG_BACKUP_SEMANTICS, 0)
